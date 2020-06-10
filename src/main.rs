@@ -35,7 +35,11 @@ fn main() {
     );
     let grammar = parser::Grammar { rules };
 
-    println!("grammar rules: {}", grammar);
+    println!("grammar rules:");
+    for rule in &grammar.rules {
+        println!("{}", rule);
+    }
+    // println!("start rule: {}", grammar.rules[0]);
 
     // for i in 0..10 {
     //     println!("example({}) = {:?}", i, parser::example(i));
@@ -45,7 +49,7 @@ fn main() {
     println!("Parsing {} words: {:?}", sent1.len(), sent1);
 
     let chart = parser::earley1(&grammar, &sent1);
-    println!("chart = {:?}, ", chart);
+    // println!("chart = {:?}, ", chart);
     parser::print_chart(&chart);
     println!("Parsing succesful: {}", parser::success(&chart, "S", 0));
 }
@@ -110,7 +114,7 @@ mod parser {
     }
 
     pub fn success(chart: &Chart, cat: &str, start: usize) -> bool {
-        println!("chart.chart.last() = {:?}", *chart.chart.last().unwrap());
+        // println!("chart.chart.last() = {:?}", *chart.chart.last().unwrap());
         chart.chart.last().unwrap().iter().any(|edge| edge.start == start && edge.lhs == cat && edge.is_passive())
         // false
     }
@@ -122,6 +126,7 @@ mod parser {
         println!("Chart size: {} edges", chartsize(chart));
         for (k, edgeset) in chart.chart.iter().enumerate() {
             if edgeset.len() > 0 {
+                println!("{} edges ending in position {}:", edgeset.len(), k);
                 for edge in edgeset {
                     println!("    {}", edge);
                 }
@@ -136,7 +141,7 @@ mod parser {
 
         for (k, word) in input.iter().enumerate() {
             let k = k + 1;
-            println!("word {}: {}", k, word);
+            // println!("word {}: {}", k, word);
             let mut edgeset = HashSet::new();
             if k == 0 {
                 chart.push(edgeset);
@@ -151,21 +156,21 @@ mod parser {
                 dot: 0,
             });
             while agenda.len() > 0 {
-                println!("agenda = {:?}", agenda);
+                // println!("agenda = {:?}", agenda);
                 let edge = match agenda.pop() {
                     Some(edge) => edge,
                     None => panic!("no edge")
                 };
-                println!("edge = {:?}", edge);
+                // println!("edge = {:?}", edge);
                 if !edgeset.contains(&edge) {
 
                     if edge.is_passive() {
-                        println!("found passive edge.");
+                        // println!("found passive edge.");
 
                         // Predict
                         for rule in &grammar.rules {
                             if edge.lhs == rule.rhs[0] {
-                                println!("predict");
+                                // println!("predict");
                                 agenda.push(
                                     Edge {
                                         start: edge.start,
@@ -181,7 +186,7 @@ mod parser {
                         for e in &chart[edge.start] {
                             // println!("edge e = {:?}", e);
                             if !e.is_passive() && edge.lhs == e.rhs[e.dot] {
-                                println!("complete");
+                                // println!("complete");
                                 agenda.push(
                                     Edge {
                                         start: e.start,
@@ -212,10 +217,12 @@ mod parser {
         }
         result
     }
-
+    pub fn format_vec(vec: &Vec<&str>) -> String {
+        vec.join(" ")
+    }
     impl fmt::Display for Rule {
         fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            write!(f, "{} --> {:?}", self.lhs, self.rhs)
+            write!(f, "{} --> {}", self.lhs, self.rhs.join(" "))
         }
     }
 
@@ -228,13 +235,15 @@ mod parser {
     impl fmt::Display for Edge<'_> {
         fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             write!(
-                f, 
-                "[{}-{}: {} --> {:?} . {:?}]",
+                f,
+                "[{}-{}: {} --> {} . {:?}]",
                 self.start,
                 self.end,
+                // "lhs",
                 self.lhs,
-                self.rhs[..self.dot],
-                self.rhs[self.dot..],
+                // self.rhs,
+                self.rhs[..self.dot].join(" "),
+                self.rhs[self.dot..].join(" "),
             )
         }
     }
