@@ -3,18 +3,18 @@ fn main() {
 
 
     let rules = vec!(
-        parser::Rule { 
+        parser::Rule {
             lhs: String::from("S"),
             rhs: vec!(
                 String::from("NP"),
                 String::from("VP")
-            ), 
+            ),
         },
-        parser::Rule { 
+        parser::Rule {
             lhs: String::from("VP"),
-            rhs: vec!(String::from("Verb"),) 
+            rhs: vec!(String::from("Verb"),)
         },
-        parser::Rule { 
+        parser::Rule {
             lhs: String::from("VP"),
             rhs: vec!(String::from("Verb"), String::from("NP")) },
         parser::Rule { lhs: String::from("VP"),   rhs: vec!(String::from("VP"), String::from("PP")) },
@@ -36,14 +36,18 @@ fn main() {
     let grammar = parser::Grammar { rules };
 
     println!("grammar rules: {}", grammar);
-    
-    for i in 0..10 {
-        println!("example({}) = {:?}", i, parser::example(i));
-    }
-    let sent1: Vec<&'static str> = parser::example(3);
+
+    // for i in 0..10 {
+    //     println!("example({}) = {:?}", i, parser::example(i));
+    // }
+    let sent1: Vec<&'static str> = parser::example(0);
+
+    println!("Parsing {} words: {:?}", sent1.len(), sent1);
 
     let chart = parser::earley1(&grammar, &sent1);
-    println!("chart = {:?}", chart);
+    println!("chart = {:?}, ", chart);
+    parser::print_chart(&chart);
+    println!("Parsing succesful: {}", parser::success(&chart, "S", 0));
 }
 
 mod parser {
@@ -51,7 +55,7 @@ mod parser {
         collections::HashSet,
         fmt,
     };
-    
+
     const EXAMPLE_PREFIX: [&'static str; 5] = [
         "the",
         "lion",
@@ -87,13 +91,12 @@ mod parser {
         pub start: usize,
         pub end: usize,
         pub lhs: &'a str,
-        pub rhs: &'a Vec<String>,
+        pub rhs: Vec<&'a str>,
         pub dot: usize,
     }
     #[derive(Debug)]
     pub struct Chart<'a> {
         pub chart: Vec<Vec<Edge<'a>>>,
-        _empty_vec: Vec<String>,
     }
 
     pub fn example(n: usize) -> Vec<&'static str> {
@@ -106,14 +109,26 @@ mod parser {
             .map(|x| *x).collect()
     }
 
+    pub fn success(chart: &Chart, cat: &str, start: usize) -> bool {
+        println!("chart.chart.last() = {:?}", *chart.chart.last().unwrap());
+        chart.chart.last().unwrap().iter().any(|edge| edge.start == start && edge.lhs == cat && edge.is_passive())
+        // false
+    }
+
+    pub fn chartsize(chart: &Chart) -> usize {
+        chart.chart.iter().map(|v| v.len()).sum()
+    }
+    pub fn print_chart(chart: &Chart) {
+        println!("Chart size: {}", chartsize(chart));
+    }
     pub fn earley1<'a>(grammar: &'a Grammar, input: &'a Vec<&'static str>) -> Chart<'a> {
         let mut result = Chart {
             chart: Vec::new(),
-            _empty_vec: Vec::new()
         };
-        let mut chart: Vec<HashSet<Edge>> = Vec::new();
+        let mut chart: Vec<HashSet<Edge>> = vec!(HashSet::new());
 
         for (k, word) in input.iter().enumerate() {
+            let k = k + 1;
             println!("word {}: {}", k, word);
             let mut edgeset = HashSet::new();
             if k == 0 {
@@ -125,7 +140,7 @@ mod parser {
                 start: k-1,
                 end: k,
                 lhs: word,
-                rhs: &result._empty_vec,
+                rhs: Vec::new(),
                 dot: 0,
             });
             while agenda.len() > 0 {
@@ -134,7 +149,7 @@ mod parser {
                     Some(edge) => edge,
                     None => panic!("no edge")
                 };
-                
+                println!("edge = {:?}", edge);
                 if !edgeset.contains(&edge) {
 
                     if edge.is_passive() {
@@ -143,32 +158,42 @@ mod parser {
                         // Predict
                         for rule in &grammar.rules {
                             if edge.lhs == rule.rhs[0] {
+                                println!("predict");
                                 agenda.push(
                                     Edge {
                                         start: edge.start,
                                         end: k,
                                         lhs: &rule.lhs,
-                                        rhs: &rule.rhs,
+                                        rhs: rule.rhs.iter().map(String::as_str).collect(),
                                         dot: 1,
-                                })
+                                });
                             } // if
                         } // for
 
                         // Complete
                         for e in &chart[edge.start] {
-                            println!("edge: {:?}", e);
+                            // println!("edge e = {:?}", e);
                             if !e.is_passive() && edge.lhs == e.rhs[e.dot] {
                                 println!("complete");
+                                agenda.push(
+                                    Edge {
+                                        start: e.start,
+                                        end: k,
+                                        lhs: e.lhs,
+                                        rhs: e.rhs.iter().map(|x| *x).collect(),
+                                        dot: e.dot + 1,
+                                    }
+                                );
                             }
                         }
                     } // if edge.is_passive
                     edgeset.insert(edge);
                 } // if !edgeset.contains
-                
-            }
+
+            } // while agenda.len() > 0
             chart.push(edgeset);
-            println!("chart: {:?}", chart);
-        }
+            // println!("chart: {:?}", chart);
+        } // for k, word in input
         for edgeset in chart {
             let mut part = Vec::new();
             for edge in edgeset {
