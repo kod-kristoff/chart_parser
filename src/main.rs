@@ -40,7 +40,7 @@ fn main() {
     // for i in 0..10 {
     //     println!("example({}) = {:?}", i, parser::example(i));
     // }
-    let sent1: Vec<&'static str> = parser::example(0);
+    let sent1: Vec<&'static str> = parser::example(3);
 
     println!("Parsing {} words: {:?}", sent1.len(), sent1);
 
@@ -119,7 +119,14 @@ mod parser {
         chart.chart.iter().map(|v| v.len()).sum()
     }
     pub fn print_chart(chart: &Chart) {
-        println!("Chart size: {}", chartsize(chart));
+        println!("Chart size: {} edges", chartsize(chart));
+        for (k, edgeset) in chart.chart.iter().enumerate() {
+            if edgeset.len() > 0 {
+                for edge in edgeset {
+                    println!("    {}", edge);
+                }
+            }
+        }
     }
     pub fn earley1<'a>(grammar: &'a Grammar, input: &'a Vec<&'static str>) -> Chart<'a> {
         let mut result = Chart {
@@ -218,6 +225,19 @@ mod parser {
         }
     }
 
+    impl fmt::Display for Edge<'_> {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            write!(
+                f, 
+                "[{}-{}: {} --> {:?} . {:?}]",
+                self.start,
+                self.end,
+                self.lhs,
+                self.rhs[..self.dot],
+                self.rhs[self.dot..],
+            )
+        }
+    }
     impl Edge<'_> {
         pub fn is_passive(&self) -> bool {
             self.dot == self.rhs.len()
