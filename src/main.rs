@@ -1,6 +1,5 @@
 fn main() {
-    println!("Hello, world!");
-
+    use std::time::Instant;
 
     let grammar = vec!(
         parser::Rule {
@@ -44,9 +43,10 @@ fn main() {
     for (lc, rules) in parser::leftcorners_dict(&grammar) {
         println!("{:>10}: {:?}", lc, rules);
     }
-    // for i in 0..10 {
-    //     println!("example({}) = {:?}", i, parser::example(i));
-    // }
+
+    for i in 0..10 {
+        println!("example({}) = {:?}", i, parser::example(i));
+    }
     let sent1: Vec<&'static str> = parser::example(3);
 
     // println!("Parsing {} words: {:?}", sent1.len(), sent1);
@@ -59,19 +59,31 @@ fn main() {
         parser::earley1,
         &grammar,
         "S",
-        &sent1.as_slice(),
+        &sent1,
+        &[1,2,-2,-1],
     );
     parser::test(
         parser::earley1,
         &grammar,
         "S",
         &sent1[..6],
+        &[1,2,3,4,5,6],
     );
+    let now = Instant::now();
+    parser::test(
+        parser::earley1,
+        &grammar,
+        "S",
+        &parser::example(200),
+        &[-1],
+    );
+    println!("Elapsed time: {:.6?}", now.elapsed());
 }
 
 mod parser {
     use std::{
         collections::{HashMap, HashSet},
+        cmp,
         fmt,
     };
 
@@ -105,7 +117,7 @@ mod parser {
     }
 
 
-    #[derive(Debug, Eq, Hash, PartialEq)]
+    #[derive(Debug, Eq, Hash, PartialEq, Clone)]
     pub struct Edge<'a> {
         pub start: usize,
         pub end: usize,
@@ -124,7 +136,7 @@ mod parser {
         //    suffix.chain(EXAMPLE_SUFFIX.iter());
         // }
         EXAMPLE_PREFIX.iter()
-            .chain(EXAMPLE_SUFFIX.iter().take(n*3))
+            .chain(EXAMPLE_SUFFIX.iter().cycle().take(n*3))
             .map(|x| *x).collect()
     }
 
@@ -151,23 +163,41 @@ mod parser {
         grammar: &'a [Rule],
         cat: &str,
         sentence: &'a [&str],
+        positions: &[i32],
         ) {
+        let nwords = sentence.len();
+        if nwords <= 15 {
         println!("Parsing {} words: {}", sentence.len(), sentence.join(" "));
+        } else {
+            println!(
+                "Parsing {} words: {} ... {}",
+                sentence.len(),
+                sentence[..3].join(" "),
+                sentence[(nwords-9)..].join(" "),
+            );
+        }
         let chart = parser(grammar, sentence);
         if success(&chart, cat, 0) {
             println!("Yay, success!!");
         } else {
             println!("Meh, failure :(");
         }
-        print_chart(&chart);
+        print_chart(&chart, positions, None);
     }
 
-    pub fn print_chart(chart: &Chart) {
+    pub fn print_chart(chart: &Chart, positions: &[i32], cutoff: Option<usize>) {
+        let cutoff: usize = cutoff.unwrap_or(8);
         println!("Chart size: {} edges", chartsize(chart));
         for (k, edgeset) in chart.chart.iter().enumerate() {
-            if edgeset.len() > 0 {
+            if edgeset.len() > 0 && (positions.contains(&(k as i32)) || positions.contains(&(k as i32 - chart.chart.len() as i32))) {
                 println!("{} edges ending in position {}:", edgeset.len(), k);
-                for edge in edgeset {
+                let mut sorted_edgeset = edgeset.to_vec();
+                sorted_edgeset.sort();
+                for (n, edge) in sorted_edgeset.iter().enumerate() {
+                    if cutoff > 0 && n >= cutoff {
+                        println!("    ...");
+                        break;
+                    }
                     println!("    {}", edge);
                 }
             }
@@ -257,9 +287,9 @@ mod parser {
         }
         result
     }
-    pub fn format_vec(vec: &Vec<&str>) -> String {
-        vec.join(" ")
-    }
+    // pub fn format_vec(vec: &Vec<&str>) -> String {
+    //     vec.join(" ")
+    // }
     impl fmt::Display for Rule {
         fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             write!(f, "{} --> {}", self.lhs, self.rhs.join(" "))
@@ -290,6 +320,18 @@ mod parser {
     impl Edge<'_> {
         pub fn is_passive(&self) -> bool {
             self.dot == self.rhs.len()
+        }
+    }
+
+    impl Ord for Edge<'_> {
+        fn cmp(&self, other: &Self) -> cmp::Ordering {
+            (self.start, self.end).cmp(&(other.start, other.end))
+        }
+    }
+
+    impl PartialOrd for Edge<'_> {
+        fn partial_cmp(&self, other: &Self) -> Option<cmp::Ordering> {
+            Some(self.cmp(other))
         }
     }
 }
