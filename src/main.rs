@@ -76,7 +76,7 @@ fn main() {
         parser::earley1,
         &grammar,
         "S",
-        &parser::example(200),
+        &parser::example(3),
         &[-1],
     );
     println!("Elapsed time: {:.6?}", now.elapsed());
@@ -86,7 +86,7 @@ fn main() {
         parser::earley2,
         &grammar,
         "S",
-        &parser::example(200),
+        &parser::example(3),
         &[-1],
     );
     println!("Elapsed time: {:.6?}", now.elapsed());
@@ -231,13 +231,7 @@ mod parser {
             //     continue;
             // }
             // Scan
-            let mut agenda = vec!(Edge {
-                start: k-1,
-                end: k,
-                lhs: word,
-                rhs: Vec::new(),
-                dot: 0,
-            });
+            let mut agenda = vec!(Edge::new(k-1, k, word, None, 0));
             while agenda.len() > 0 {
                 // println!("agenda = {:?}", agenda);
                 let edge = match agenda.pop() {
@@ -424,7 +418,19 @@ mod parser {
             )
         }
     }
-    impl Edge<'_> {
+    impl<'a> Edge<'a> {
+        pub fn new(start: usize, end: usize, lhs: &'a str, rhs: Option<&[&'a str]>, dot: usize) -> Self {
+            Edge::<'a> {
+                start: start,
+                end: end,
+                lhs: lhs,
+                rhs: match rhs {
+                    None => Vec::new(),
+                    Some(vec) => vec.iter().map(|x| *x).collect()
+                },
+                dot: dot,
+            }
+        }
         pub fn is_passive(&self) -> bool {
             self.dot == self.rhs.len()
         }
