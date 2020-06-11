@@ -2,7 +2,7 @@ fn main() {
     println!("Hello, world!");
 
 
-    let rules = vec!(
+    let grammar = vec!(
         parser::Rule {
             lhs: String::from("S"),
             rhs: vec!(
@@ -33,10 +33,10 @@ fn main() {
         parser::Rule { lhs: String::from("Noun"), rhs: vec!(String::from("park"),) },
         parser::Rule { lhs: String::from("Noun"), rhs: vec!(String::from("telescope"),) },
     );
-    let grammar = parser::Grammar { rules };
+    // let grammar = parser::Grammar { rules };
 
     println!("grammar rules:");
-    for rule in &grammar.rules {
+    for rule in &grammar {
         println!("{}", rule);
     }
     // println!("start rule: {}", grammar.rules[0]);
@@ -46,12 +46,24 @@ fn main() {
     // }
     let sent1: Vec<&'static str> = parser::example(3);
 
-    println!("Parsing {} words: {:?}", sent1.len(), sent1);
+    // println!("Parsing {} words: {:?}", sent1.len(), sent1);
 
-    let chart = parser::earley1(&grammar, &sent1);
+    // let chart = parser::earley1(&grammar, &sent1);
     // println!("chart = {:?}, ", chart);
-    parser::print_chart(&chart);
-    println!("Parsing succesful: {}", parser::success(&chart, "S", 0));
+    // parser::print_chart(&chart);
+    // println!("Parsing succesful: {}", parser::success(&chart, "S", 0));
+    parser::test(
+        parser::earley1,
+        &grammar,
+        "S",
+        &sent1.as_slice(),
+    );
+    parser::test(
+        parser::earley1,
+        &grammar,
+        "S",
+        &sent1[..6],
+    );
 }
 
 mod parser {
@@ -122,6 +134,23 @@ mod parser {
     pub fn chartsize(chart: &Chart) -> usize {
         chart.chart.iter().map(|v| v.len()).sum()
     }
+
+    pub fn test<'a>(
+        parser: impl Fn(&'a[Rule], &[&'a str]) -> Chart<'a>,
+        grammar: &'a [Rule],
+        cat: &str,
+        sentence: &'a [&str],
+        ) {
+        println!("Parsing {} words: {}", sentence.len(), sentence.join(" "));
+        let chart = parser(grammar, sentence);
+        if success(&chart, cat, 0) {
+            println!("Yay, success!!");
+        } else {
+            println!("Meh, failure :(");
+        }
+        print_chart(&chart);
+    }
+
     pub fn print_chart(chart: &Chart) {
         println!("Chart size: {} edges", chartsize(chart));
         for (k, edgeset) in chart.chart.iter().enumerate() {
@@ -133,7 +162,7 @@ mod parser {
             }
         }
     }
-    pub fn earley1<'a>(grammar: &'a Grammar, input: &'a Vec<&'static str>) -> Chart<'a> {
+    pub fn earley1<'a>(grammar: &'a [Rule], input: &[&'a str]) -> Chart<'a> {
         let mut result = Chart {
             chart: Vec::new(),
         };
@@ -168,7 +197,7 @@ mod parser {
                         // println!("found passive edge.");
 
                         // Predict
-                        for rule in &grammar.rules {
+                        for rule in grammar {
                             if edge.lhs == rule.rhs[0] {
                                 // println!("predict");
                                 agenda.push(
