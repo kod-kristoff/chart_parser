@@ -1,5 +1,6 @@
 fn main() {
     use std::time::Instant;
+    use itertools::Itertools;
 
     let grammar = vec!(
         parser::Rule {
@@ -41,7 +42,7 @@ fn main() {
     // println!("start rule: {}", grammar.rules[0]);
 
     for (lc, rules) in parser::leftcorners_dict(&grammar) {
-        println!("{:>10}: {:?}", lc, rules);
+        println!("{:10}: {}", lc, rules.iter().format("      "));
     }
 
     for i in 0..10 {
@@ -69,9 +70,20 @@ fn main() {
         &sent1[..6],
         &[1,2,3,4,5,6],
     );
+
     let now = Instant::now();
     parser::test(
         parser::earley1,
+        &grammar,
+        "S",
+        &parser::example(200),
+        &[-1],
+    );
+    println!("Elapsed time: {:.6?}", now.elapsed());
+
+    let now = Instant::now();
+    parser::test(
+        parser::earley2,
         &grammar,
         "S",
         &parser::example(200),
@@ -140,14 +152,15 @@ mod parser {
             .map(|x| *x).collect()
     }
 
-    pub fn leftcorners_dict(grammar: &[Rule]) -> HashMap<&String, Vec<&Rule>> {
+    pub fn leftcorners_dict<'a>(grammar: &'a [Rule]) -> HashMap<&'a str, Vec<&Rule>> {
         let mut leftcorners = HashMap::new();
         for rule in grammar {
-            let entry = leftcorners.entry(&rule.rhs[0]).or_insert(Vec::new());
+            let entry = leftcorners.entry(rule.rhs[0].as_str()).or_insert(Vec::new());
             entry.push(rule);
         }
         leftcorners
     }
+
     pub fn success(chart: &Chart, cat: &str, start: usize) -> bool {
         // println!("chart.chart.last() = {:?}", *chart.chart.last().unwrap());
         chart.chart.last().unwrap().iter().any(|edge| edge.start == start && edge.lhs == cat && edge.is_passive())
@@ -213,10 +226,10 @@ mod parser {
             let k = k + 1;
             // println!("word {}: {}", k, word);
             let mut edgeset = HashSet::new();
-            if k == 0 {
-                chart.push(edgeset);
-                continue;
-            }
+            // if k == 0 {
+            //     chart.push(edgeset);
+            //     continue;
+            // }
             // Scan
             let mut agenda = vec!(Edge {
                 start: k-1,
@@ -287,6 +300,94 @@ mod parser {
         }
         result
     }
+
+    pub fn earley2<'a>(grammar: &'a [Rule], input: &[&'a str]) -> Chart<'a> {
+        let leftcorners = leftcorners_dict(grammar);
+
+        let mut chart: Vec<HashMap<Option<&str>, HashSet<Edge>>> = Vec::new();
+        {
+            let mut entry_0 = HashMap::new();
+            entry_0.insert(None, HashSet::new());
+            chart.push(entry_0);
+        }
+
+        for (k, sym) in input.iter().enumerate() {
+            let k = k + 1;
+
+            let mut lc_edgesets = HashMap::new();
+
+            // Scan
+            let mut agenda = vec!(Edge {
+                start: k-1,
+                end: k,
+                lhs: sym,
+                rhs: Vec::new(),
+                dot: 0,
+            });
+
+            while agenda.len() > 0 {
+                // println!("agenda = {:?}", agenda);
+
+                let edge = match agenda.pop() {
+                    Some(edge) => edge,
+                    None => panic!("no edge")
+                };
+
+                let leftc = match edge.is_passive() {
+                    true => None,
+                    false => Some(edge.rhs[edge.dot])
+                };
+                let edgeset = lc_edgesets.entry(leftc).or_insert(HashSet::<Edge>::new());
+
+                if !edgeset.contains(&edge) {
+                    if edge.is_passive() {
+                        // Predict
+                        if leftcorners.contains_key(edge.lhs) {
+                            let rules = &leftcorners[edge.lhs];
+                            for rule in rules {
+                                agenda.push(
+                                    Edge {
+                                        start: edge.start,
+                                        end: k,
+                                        lhs: &rule.lhs,
+                                        rhs: rule.rhs.iter().map(String::as_str).collect(),
+                                        dot: 1,
+                                    }
+                                );
+                            }
+                        }
+
+                        // Complete
+                        if chart[edge.start].contains_key(&Some(edge.lhs)) {
+                            for e in &chart[edge.start][&Some(edge.lhs)] {
+                                agenda.push(
+                                    Edge {
+                                        start: e.start,
+                                        end: k,
+                                        lhs: e.lhs,
+                                        rhs: e.rhs.iter().map(|x| *x).collect(),
+                                        dot: e.dot + 1,
+                                    }
+                                );
+                            }
+                        }
+                    } // if edge is passive
+                    edgeset.insert(edge);
+                } // if edge not in edgeset
+            } // while agenda
+            chart.push(lc_edgesets);
+        } // for input
+
+        let mut result = Chart::new();
+        for lc_edgeset in chart {
+            let mut part = Vec::new();
+            for edge in lc_edgeset.get(&None).unwrap() {
+                part.push(edge.clone())
+            }
+            result.chart.push(part);
+        }
+        result
+    }
     // pub fn format_vec(vec: &Vec<&str>) -> String {
     //     vec.join(" ")
     // }
@@ -299,6 +400,12 @@ mod parser {
     impl fmt::Display for Grammar {
         fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             write!(f, "{:?}", self.rules)
+        }
+    }
+
+    impl Chart<'_> {
+        pub fn new() -> Self {
+            Chart { chart: Vec::new() }
         }
     }
 
