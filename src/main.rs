@@ -41,6 +41,9 @@ fn main() {
     }
     // println!("start rule: {}", grammar.rules[0]);
 
+    for (lc, rules) in parser::leftcorners_dict(&grammar) {
+        println!("{:>10}: {:?}", lc, rules);
+    }
     // for i in 0..10 {
     //     println!("example({}) = {:?}", i, parser::example(i));
     // }
@@ -68,7 +71,7 @@ fn main() {
 
 mod parser {
     use std::{
-        collections::HashSet,
+        collections::{HashMap, HashSet},
         fmt,
     };
 
@@ -125,6 +128,14 @@ mod parser {
             .map(|x| *x).collect()
     }
 
+    pub fn leftcorners_dict(grammar: &[Rule]) -> HashMap<&String, Vec<&Rule>> {
+        let mut leftcorners = HashMap::new();
+        for rule in grammar {
+            let entry = leftcorners.entry(&rule.rhs[0]).or_insert(Vec::new());
+            entry.push(rule);
+        }
+        leftcorners
+    }
     pub fn success(chart: &Chart, cat: &str, start: usize) -> bool {
         // println!("chart.chart.last() = {:?}", *chart.chart.last().unwrap());
         chart.chart.last().unwrap().iter().any(|edge| edge.start == start && edge.lhs == cat && edge.is_passive())
