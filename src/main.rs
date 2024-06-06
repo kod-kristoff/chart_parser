@@ -1,39 +1,55 @@
 fn main() {
     use std::time::Instant;
+    use std::fs::File;
+    use std::io::{BufWriter, Write};
     use itertools::Itertools;
 
-    let grammar = vec!(
-        parser::Rule {
-            lhs: String::from("S"),
-            rhs: vec!(
-                String::from("NP"),
-                String::from("VP")
-            ),
-        },
-        parser::Rule {
-            lhs: String::from("VP"),
-            rhs: vec!(String::from("Verb"),)
-        },
-        parser::Rule {
-            lhs: String::from("VP"),
-            rhs: vec!(String::from("Verb"), String::from("NP")) },
-        parser::Rule { lhs: String::from("VP"),   rhs: vec!(String::from("VP"), String::from("PP")) },
-        parser::Rule { lhs: String::from("NP"),   rhs: vec!(String::from("Det"), String::from("Noun")) },
-        parser::Rule { lhs: String::from("NP"),   rhs: vec!(String::from("NP"), String::from("PP")) },
-        parser::Rule { lhs: String::from("PP"),   rhs: vec!(String::from("Prep"), String::from("NP")) },
-        parser::Rule { lhs: String::from("Verb"), rhs: vec!(String::from("sees"),) },
-        parser::Rule { lhs: String::from("Det"),  rhs: vec!(String::from("the"),) },
-        parser::Rule { lhs: String::from("Det"),  rhs: vec!(String::from("a"),) },
-        parser::Rule { lhs: String::from("Prep"), rhs: vec!(String::from("under"),) },
-        parser::Rule { lhs: String::from("Prep"), rhs: vec!(String::from("with"),) },
-        parser::Rule { lhs: String::from("Prep"), rhs: vec!(String::from("in"),) },
-        parser::Rule { lhs: String::from("Noun"), rhs: vec!(String::from("zebra"),) },
-        parser::Rule { lhs: String::from("Noun"), rhs: vec!(String::from("lion"),) },
-        parser::Rule { lhs: String::from("Noun"), rhs: vec!(String::from("tree"),) },
-        parser::Rule { lhs: String::from("Noun"), rhs: vec!(String::from("park"),) },
-        parser::Rule { lhs: String::from("Noun"), rhs: vec!(String::from("telescope"),) },
-    );
+    let grammar = match parser::read_grammar_from_ron_file("grammar.ron") {
+        Ok(grammar) => grammar,
+        Err(e) => {
+            println!("error reading 'grammar.ron': {}", e);
+            println!("loading default ...");
+            vec!(
+                parser::Rule {
+                    lhs: String::from("S"),
+                    rhs: vec!(
+                        String::from("NP"),
+                        String::from("VP")
+                    ),
+                },
+                parser::Rule {
+                    lhs: String::from("VP"),
+                    rhs: vec!(String::from("Verb"),)
+                },
+                parser::Rule {
+                    lhs: String::from("VP"),
+                    rhs: vec!(String::from("Verb"), String::from("NP")) },
+                parser::Rule { lhs: String::from("VP"),   rhs: vec!(String::from("VP"), String::from("PP")) },
+                parser::Rule { lhs: String::from("NP"),   rhs: vec!(String::from("Det"), String::from("Noun")) },
+                parser::Rule { lhs: String::from("NP"),   rhs: vec!(String::from("NP"), String::from("PP")) },
+                parser::Rule { lhs: String::from("PP"),   rhs: vec!(String::from("Prep"), String::from("NP")) },
+                parser::Rule { lhs: String::from("Verb"), rhs: vec!(String::from("sees"),) },
+                parser::Rule { lhs: String::from("Det"),  rhs: vec!(String::from("the"),) },
+                parser::Rule { lhs: String::from("Det"),  rhs: vec!(String::from("a"),) },
+                parser::Rule { lhs: String::from("Prep"), rhs: vec!(String::from("under"),) },
+                parser::Rule { lhs: String::from("Prep"), rhs: vec!(String::from("with"),) },
+                parser::Rule { lhs: String::from("Prep"), rhs: vec!(String::from("in"),) },
+                parser::Rule { lhs: String::from("Noun"), rhs: vec!(String::from("zebra"),) },
+                parser::Rule { lhs: String::from("Noun"), rhs: vec!(String::from("lion"),) },
+                parser::Rule { lhs: String::from("Noun"), rhs: vec!(String::from("tree"),) },
+                parser::Rule { lhs: String::from("Noun"), rhs: vec!(String::from("park"),) },
+                parser::Rule { lhs: String::from("Noun"), rhs: vec!(String::from("telescope"),) },
+            ) 
+        }
+    };
     // let grammar = parser::Grammar { rules };
+
+//    let f = File::create("grammar.ron").expect("fail 1");
+//    let mut f = BufWriter::new(f);
+//    match ron::ser::to_writer(f, &grammar) {
+//        Ok(_) => println!("serialize"),
+//        Err(e) => println!("Error {}", e)
+//    }
 
     println!("grammar rules:");
     for rule in &grammar {
@@ -46,7 +62,7 @@ fn main() {
     }
 
     for i in 0..10 {
-        println!("example({}) = {:?}", i, parser::example(i));
+        println!("example({}) = {}", i, parser::example(i).join(" "));
     }
     let sent1: Vec<&'static str> = parser::example(3);
 
@@ -79,7 +95,7 @@ fn main() {
         &parser::example(3),
         &[-1],
     );
-    println!("Elapsed time: {:.6?}", now.elapsed());
+    println!("earley1, elapsed time: {:.6?}", now.elapsed());
 
     let now = Instant::now();
     parser::test(
@@ -89,7 +105,19 @@ fn main() {
         &parser::example(3),
         &[-1],
     );
-    println!("Elapsed time: {:.6?}", now.elapsed());
+    println!("earley2, elapsed time: {:.6?}", now.elapsed());
+
+    let now = Instant::now();
+    parser::test(
+        parser::earley2,
+        &grammar,
+        "S",
+        &parser::example(3),
+        &[-1],
+    );
+    println!("earley2, elapsed time: {:.6?}", now.elapsed());
+
+
 }
 
 mod parser {
@@ -97,7 +125,10 @@ mod parser {
         collections::{HashMap, HashSet},
         cmp,
         fmt,
+        fs::File,
     };
+    use ron::Result;
+    use serde::{Deserialize, Serialize};
 
     const EXAMPLE_PREFIX: [&'static str; 5] = [
         "the",
@@ -118,28 +149,16 @@ mod parser {
         "park",
     ];
 
-    #[derive(Debug)]
     pub struct Rule {
         pub lhs: String,
         pub rhs: Vec<String>,
     }
 
-    pub struct Grammar {
-        pub rules: Vec<Rule>,
-    }
 
-
-    #[derive(Debug, Eq, Hash, PartialEq, Clone)]
-    pub struct Edge<'a> {
-        pub start: usize,
-        pub end: usize,
-        pub lhs: &'a str,
-        pub rhs: Vec<&'a str>,
-        pub dot: usize,
-    }
-    #[derive(Debug)]
-    pub struct Chart<'a> {
-        pub chart: Vec<Vec<Edge<'a>>>,
+    pub fn read_grammar_from_ron_file(file_name: &str) -> ron::Result<Vec<Rule>> {
+        let f = File::open(file_name)?;
+        let grammar: ron::Result<Vec<Rule>> = ron::de::from_reader(f);
+        grammar
     }
 
     pub fn example(n: usize) -> Vec<&'static str> {
@@ -165,10 +184,6 @@ mod parser {
         // println!("chart.chart.last() = {:?}", *chart.chart.last().unwrap());
         chart.chart.last().unwrap().iter().any(|edge| edge.start == start && edge.lhs == cat && edge.is_passive())
         // false
-    }
-
-    pub fn chartsize(chart: &Chart) -> usize {
-        chart.chart.iter().map(|v| v.len()).sum()
     }
 
     pub fn test<'a>(
@@ -382,69 +397,119 @@ mod parser {
         }
         result
     }
+    
+    #[derive(Clone, Debug)]
+    pub struct Tree {
+        root: String,
+        children: Vec<Tree>,
+    }
+
+    impl Tree {
+        pub fn new(root: &str, children: Vec<Tree>) -> Self {
+            Tree { 
+                root: root.to_string(),  
+                children: children 
+            }
+        }
+
+        pub fn leaf(root: &str) -> Self {
+            Tree {
+                root: root.to_string(),
+                children: Vec::new()
+            }
+        }
+    }
+
+    pub fn earley3<'a>(grammar: &'a [Rule], input: &[&'a str]) -> Chart<'a> {
+        let leftcorners = leftcorners_dict(grammar);
+
+        let mut chart: Vec<HashMap<Option<&str>, HashSet<Edge>>> = Vec::new();
+        {
+            let mut entry_0 = HashMap::new();
+            entry_0.insert(None, HashSet::new());
+            chart.push(entry_0);
+        }
+
+        for (k, sym) in input.iter().enumerate() {
+            let k = k + 1;
+
+            let mut lc_edgesets = HashMap::new();
+
+            // Scan
+            let mut agenda = vec!(Edge::with_result(
+                k-1,
+                k,
+                sym,
+                Vec::new(),
+                0,
+                )
+            );
+
+            while agenda.len() > 0 {
+                // println!("agenda = {:?}", agenda);
+
+                let edge = match agenda.pop() {
+                    Some(edge) => edge,
+                    None => panic!("no edge")
+                };
+
+                let leftc = match edge.is_passive() {
+                    true => None,
+                    false => Some(edge.rhs[edge.dot])
+                };
+                let edgeset = lc_edgesets.entry(leftc).or_insert(HashSet::<Edge>::new());
+
+                if !edgeset.contains(&edge) {
+                    if edge.is_passive() {
+                        // Predict
+                        if leftcorners.contains_key(edge.lhs) {
+                            let rules = &leftcorners[edge.lhs];
+                            for rule in rules {
+                                agenda.push(
+                                    Edge {
+                                        start: edge.start,
+                                        end: k,
+                                        lhs: &rule.lhs,
+                                        rhs: rule.rhs.iter().map(String::as_str).collect(),
+                                        dot: 1,
+                                    }
+                                );
+                            }
+                        }
+
+                        // Complete
+                        if chart[edge.start].contains_key(&Some(edge.lhs)) {
+                            for e in &chart[edge.start][&Some(edge.lhs)] {
+                                agenda.push(
+                                    Edge {
+                                        start: e.start,
+                                        end: k,
+                                        lhs: e.lhs,
+                                        rhs: e.rhs.iter().map(|x| *x).collect(),
+                                        dot: e.dot + 1,
+                                    }
+                                );
+                            }
+                        }
+                    } // if edge is passive
+                    edgeset.insert(edge);
+                } // if edge not in edgeset
+            } // while agenda
+            chart.push(lc_edgesets);
+        } // for input
+
+        let mut result = Chart::new();
+        for lc_edgeset in chart {
+            let mut part = Vec::new();
+            for edge in lc_edgeset.get(&None).unwrap() {
+                part.push(edge.clone())
+            }
+            result.chart.push(part);
+        }
+        result
+    }
     // pub fn format_vec(vec: &Vec<&str>) -> String {
     //     vec.join(" ")
     // }
-    impl fmt::Display for Rule {
-        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            write!(f, "{} --> {}", self.lhs, self.rhs.join(" "))
-        }
-    }
 
-    impl fmt::Display for Grammar {
-        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            write!(f, "{:?}", self.rules)
-        }
-    }
-
-    impl Chart<'_> {
-        pub fn new() -> Self {
-            Chart { chart: Vec::new() }
-        }
-    }
-
-    impl fmt::Display for Edge<'_> {
-        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            write!(
-                f,
-                "[{}-{}: {} --> {} . {:?}]",
-                self.start,
-                self.end,
-                // "lhs",
-                self.lhs,
-                // self.rhs,
-                self.rhs[..self.dot].join(" "),
-                self.rhs[self.dot..].join(" "),
-            )
-        }
-    }
-    impl<'a> Edge<'a> {
-        pub fn new(start: usize, end: usize, lhs: &'a str, rhs: Option<&[&'a str]>, dot: usize) -> Self {
-            Edge::<'a> {
-                start: start,
-                end: end,
-                lhs: lhs,
-                rhs: match rhs {
-                    None => Vec::new(),
-                    Some(vec) => vec.iter().map(|x| *x).collect()
-                },
-                dot: dot,
-            }
-        }
-        pub fn is_passive(&self) -> bool {
-            self.dot == self.rhs.len()
-        }
-    }
-
-    impl Ord for Edge<'_> {
-        fn cmp(&self, other: &Self) -> cmp::Ordering {
-            (self.start, self.end).cmp(&(other.start, other.end))
-        }
-    }
-
-    impl PartialOrd for Edge<'_> {
-        fn partial_cmp(&self, other: &Self) -> Option<cmp::Ordering> {
-            Some(self.cmp(other))
-        }
-    }
 }
