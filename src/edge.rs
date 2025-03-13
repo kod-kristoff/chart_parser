@@ -18,14 +18,14 @@ impl<'a> Edge<'a> {
         dot: usize,
     ) -> Self {
         Edge::<'a> {
-            start: start,
-            end: end,
-            lhs: lhs,
+            start,
+            end,
+            lhs,
             rhs: match rhs {
                 None => Vec::new(),
                 Some(vec) => vec.iter().map(|x| *x).collect(),
             },
-            dot: dot,
+            dot,
         }
     }
     pub fn is_passive(&self) -> bool {
@@ -106,7 +106,7 @@ mod tests {
     #[test]
     fn format_edge_without_rhs() {
         let lhs = "S";
-        let edge = Edge::new(0, 2, "S", None, 0);
+        let edge = Edge::new(0, 2, lhs, None, 0);
 
         assert_eq!(format!("{}", edge), "[0-2: S -->  . ]");
     }
