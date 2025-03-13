@@ -1,4 +1,4 @@
-use crate::domain::models::edge::Edge;
+use crate::edge::Edge;
 
 #[derive(Debug)]
 pub struct Chart<'a> {
@@ -13,7 +13,6 @@ impl Chart<'_> {
     pub fn chartsize(&self) -> usize {
         self.chart.iter().map(|v| v.len()).sum()
     }
-
 }
 
 #[cfg(test)]

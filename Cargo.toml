@@ -2,11 +2,15 @@
 name = "chart_parser"
 version = "0.1.0"
 authors = ["Kristoffer Andersson <kod.kristoff@gmail.com>"]
-edition = "2018"
+edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[[example]]
+name = "simple_grammar"
+path = "examples/simple_grammar.rs"
+
 [dependencies]
-itertools = "0.9"
-ron = "*"
-serde = "*"
+itertools = "0.14.0"
+ron = "0.8.1"
+serde = { version = "1.0.219", features = ["derive"] }

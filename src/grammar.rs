@@ -1,5 +1,5 @@
-use std::fmt;
 use serde::{Deserialize, Serialize};
+use std::fmt;
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Grammar {
@@ -8,8 +8,8 @@ pub struct Grammar {
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Rule {
-    lhs: String,
-    rhs: Vec<String>,
+    pub lhs: String,
+    pub rhs: Vec<String>,
 }
 
 impl Grammar {
@@ -52,7 +52,6 @@ impl fmt::Display for Rule {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -76,13 +75,10 @@ mod tests {
 
     #[test]
     fn from_rules_creates_grammar() {
-        let rules = vec!(Rule::new("S", Vec::new()));
+        let rules = vec![Rule::new("S", Vec::new())];
         let grammar = Grammar::from_rules(rules);
 
         assert_eq!(grammar.rules.len(), 1);
-        assert_eq!(
-            format!("{}", grammar),
-            "grammar rules:\n  S --> "
-        );
+        assert_eq!(format!("{}", grammar), "grammar rules:\n  S --> ");
     }
 } // mod tests

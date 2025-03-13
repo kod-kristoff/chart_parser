@@ -1,26 +1,29 @@
-use std::{
-    cmp,
-    fmt,
-};
+use std::{cmp, fmt};
 
 #[derive(Debug, Eq, Hash, PartialEq, Clone)]
 pub struct Edge<'a> {
-    start: usize,
-    end: usize,
-    lhs: &'a str,
-    rhs: Vec<&'a str>,
-    dot: usize,
+    pub start: usize,
+    pub end: usize,
+    pub lhs: &'a str,
+    pub rhs: Vec<&'a str>,
+    pub dot: usize,
 }
 
 impl<'a> Edge<'a> {
-    pub fn new(start: usize, end: usize, lhs: &'a str, rhs: Option<&[&'a str]>, dot: usize) -> Self {
+    pub fn new(
+        start: usize,
+        end: usize,
+        lhs: &'a str,
+        rhs: Option<&[&'a str]>,
+        dot: usize,
+    ) -> Self {
         Edge::<'a> {
             start: start,
             end: end,
             lhs: lhs,
             rhs: match rhs {
                 None => Vec::new(),
-                Some(vec) => vec.iter().map(|x| *x).collect()
+                Some(vec) => vec.iter().map(|x| *x).collect(),
             },
             dot: dot,
         }
@@ -65,7 +68,7 @@ mod tests {
     #[test]
     fn new_with_rhs_creates_edge() {
         let lhs = "S";
-        let rhs = vec!("NP", "VP");
+        let rhs = vec!["NP", "VP"];
         let edge = Edge::new(0, 2, lhs, Some(&rhs), 1);
 
         assert_eq!(edge.start, 0);
@@ -88,14 +91,14 @@ mod tests {
 
     #[test]
     fn format_edge_with_rhs_and_dot_less_than_rhs_len() {
-        let edge = Edge::new(0, 2, "S", Some(&vec!("NP", "VP")), 1);
+        let edge = Edge::new(0, 2, "S", Some(&vec!["NP", "VP"]), 1);
 
         assert_eq!(format!("{}", edge), "[0-2: S --> NP . VP]");
     }
 
     #[test]
     fn format_edge_with_rhs_and_dot_equal_to_rhs_len() {
-        let edge = Edge::new(0, 2, "S", Some(&vec!("NP", "VP")), 2);
+        let edge = Edge::new(0, 2, "S", Some(&vec!["NP", "VP"]), 2);
 
         assert_eq!(format!("{}", edge), "[0-2: S --> NP VP . ]");
     }
@@ -110,14 +113,14 @@ mod tests {
 
     #[test]
     fn edge_with_dot_less_than_rhs_len_is_not_passive() {
-        let edge = Edge::new(0, 2, "S", Some(&vec!("NP", "VP")), 1);
+        let edge = Edge::new(0, 2, "S", Some(&vec!["NP", "VP"]), 1);
 
         assert!(!edge.is_passive());
     }
 
     #[test]
     fn edge_with_dot_equal_to_rhs_len_is_passive() {
-        let edge = Edge::new(0, 2, "S", Some(&vec!("NP", "VP")), 2);
+        let edge = Edge::new(0, 2, "S", Some(&vec!["NP", "VP"]), 2);
 
         assert!(edge.is_passive());
     }
@@ -126,7 +129,7 @@ mod tests {
     fn edge_without_rhs_is_passive() {
         let edge = Edge::new(0, 2, "S", None, 0);
 
-        assert!(edge.is_passive());    
+        assert!(edge.is_passive());
     }
 
     #[test]
